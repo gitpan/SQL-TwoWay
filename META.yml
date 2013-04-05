@@ -27,11 +27,11 @@ no_index:
 provides:
   SQL::TwoWay:
     file: lib/SQL/TwoWay.pm
-    version: 0.01
+    version: 0.02
 requires:
   perl: 5.010001
 resources:
   bugtracker: https://github.com/tokuhirom/SQL-TwoWay/issues
   homepage: https://github.com/tokuhirom/SQL-TwoWay
   repository: git://github.com/tokuhirom/SQL-TwoWay.git
-version: 0.01
+version: 0.02

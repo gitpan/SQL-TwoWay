@@ -53,7 +53,7 @@
    "provides" : {
       "SQL::TwoWay" : {
          "file" : "lib/SQL/TwoWay.pm",
-         "version" : "0.01"
+         "version" : "0.02"
       }
    },
    "release_status" : "stable",
@@ -67,5 +67,5 @@
          "web" : "https://github.com/tokuhirom/SQL-TwoWay"
       }
    },
-   "version" : "0.01"
+   "version" : "0.02"
 }

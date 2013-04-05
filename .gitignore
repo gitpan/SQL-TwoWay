@@ -1,0 +1,14 @@
+/.build/
+/_build/
+/carton.lock
+/.carton/
+/local/
+/nytprof.out
+/nytprof/
+/Build
+
+/SQL-TwoWay-*
+/.build
+/_build_params
+!Build/
+!META.json

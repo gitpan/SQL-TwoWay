@@ -2,12 +2,13 @@ package SQL::TwoWay;
 use strict;
 use warnings FATAL => 'recursion';
 use 5.010001; # Named capture
-our $VERSION = "0.02";
+our $VERSION = "0.03";
 use Carp ();
+use Scalar::Util qw(reftype);
 
 use parent qw(Exporter);
 
-our @EXPORT = qw(two_way);
+our @EXPORT = qw(two_way_sql);
 
 our ($TOKEN_STR2ID, $TOKEN_ID2STR);
 BEGIN {
@@ -26,16 +27,16 @@ sub token2str {
     $TOKEN_ID2STR->{+shift}
 }
 
-sub two_way {
+sub two_way_sql {
     my ($sql, $params) = @_;
 
-    my $tokens = tokenize_two_way($sql);
-    my $ast = parse_two_way($tokens);
-    my ($sql, @binds) = process_two_way($ast, $params);
+    my $tokens = tokenize_two_way_sql($sql);
+    my $ast = parse_two_way_sql($tokens);
+    my ($sql, @binds) = process_two_way_sql($ast, $params);
     return ($sql, @binds);
 }
 
-sub process_two_way {
+sub process_two_way_sql {
     my ($ast, $params) = @_;
     my ($sql, @binds);
     for my $node (@$ast) {
@@ -45,22 +46,27 @@ sub process_two_way {
                 Carp::croak("Unknown parameter for IF stmt: $name");
             }
             if ($params->{$name}) {
-                my ($is, @ib) = process_two_way($node->[2], $params);
+                my ($is, @ib) = process_two_way_sql($node->[2], $params);
                 $sql .= $is;
                 push @binds, @ib;
             } else {
-                my ($is, @ib) = process_two_way($node->[3], $params);
+                my ($is, @ib) = process_two_way_sql($node->[3], $params);
                 $sql .= $is;
                 push @binds, @ib;
             }
         } elsif ($node->[0] eq VARIABLE) {
-            $sql .= '?';
             my $name = $node->[1];
             unless (exists $params->{$name}) {
                 Carp::croak("Unknown parameter: $name");
             }
 
-            push @binds, $params->{$name};
+            if (reftype($params->{$name}) eq 'ARRAY') {
+                $sql .= '('. join(',', ('?')x@{$params->{$name}}) .')';
+                push @binds, @{$params->{$name}};
+            } else {
+                $sql .= '?';
+                push @binds, $params->{$name};
+            }
         } elsif ($node->[0] eq SQL) {
             $sql .= $node->[1];
         } else {
@@ -70,7 +76,7 @@ sub process_two_way {
     return ($sql, @binds);
 }
 
-sub parse_two_way {
+sub parse_two_way_sql {
     my ($tokens) = @_;
     my @ast;
     while (@$tokens > 0) {
@@ -132,15 +138,40 @@ sub _parse_if_stmt {
     ];
 }
 
-sub tokenize_two_way {
+sub tokenize_two_way_sql {
     my $sql = shift;
 
     my @ret;
+    my $NUMERIC_LITERAL = "-? [0-9.]+";
+    my $STRING_LITERAL = q{ (?:
+                                "
+                                    (?:
+                                        \"
+                                        | ""
+                                        | [^"]
+                                    )*
+                                "
+                                |
+                                '
+                                    (?:
+                                        \'
+                                        | ''
+                                        | [^']
+                                    )*
+                                '
+                            ) };
+    my $LITERAL = "(?: $STRING_LITERAL | $NUMERIC_LITERAL )";
     $sql =~ s!
         # Variable /* $var */3
         (
             /\* \s+ \$ (?<variable> [A-Za-z0-9_-]+) \s+ \*/
-            (?: "[^"]+" | -? [0-9.]+ )
+            (?:
+                # (3,2,4)
+                $LITERAL | \(
+                    (?: \s* $LITERAL \s* , \s* )*
+                    $LITERAL
+                \)
+            )
         )
         |
         (?:
@@ -193,7 +224,7 @@ SQL::TwoWay - Run same SQL in valid SQL and DBI placeholder.
     use SQL::TwoWay;
 
     my $name = 'STARTING OVER';
-    my ($sql, @binds) = two_way(
+    my ($sql, @binds) = two_way_sql(
         q{SELECT *
         FROM cd
         WHERE name=/* $name */"MASTERPIECE"}, {
@@ -221,11 +252,11 @@ You can write a query like this.
 
 This query is 100% valid SQL.
 
-And you can make C<<$sql>> and C<<@binds>> from this query. C<< SQL::TwoWay::two_way() >> function convert this query.
+And you can make C<<$sql>> and C<<@binds>> from this query. C<< SQL::TwoWay::two_way_sql() >> function convert this query.
 
 Here is a example code:
 
-    my ($sql, @binds) = two_way(
+    my ($sql, @binds) = two_way_sql(
         q{SELECT * FROM cd WHERE name=/* $name */"MASTERPIECE"},
         {
             name => 'STARTING OVER'
@@ -248,6 +279,10 @@ So, you can use same SQL in MySQL console and Perl code. It means B<2way SQL>.
 
 =item /* $var */4
 
+=item /* $var */(1,2,3)
+
+=item /* $var */"String"
+
 Replace variables.
 
 =item /* IF $cond */n=3/* ELSE */n=5/* END */
@@ -261,7 +296,8 @@ Replace variables.
     if : /* IF $var */
     else : /* ELSE */
     end : /* END */
-    variable : /* $var */
+    variable : /* $var */ literal
+    literal: TBD
     sql : .
 
     root = ( stmt )+

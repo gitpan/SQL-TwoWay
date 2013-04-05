@@ -34,6 +34,31 @@ subtest 'Simple replacement' => sub {
         q{SELECT * FROM foo WHERE boo=/* $b */"WoW"}, { b => "Gah!" },
         q{SELECT * FROM foo WHERE boo=?}, ['Gah!']
     );
+    match(
+        'Double quote string with escape',
+        q{SELECT * FROM foo WHERE boo=/* $b */"W""o\"W"}, { b => "Gah!" },
+        q{SELECT * FROM foo WHERE boo=?}, ['Gah!']
+    );
+    match(
+        'Single quote string',
+        q{SELECT * FROM foo WHERE boo=/* $b */'WoW'}, { b => "Gah!" },
+        q{SELECT * FROM foo WHERE boo=?}, ['Gah!']
+    );
+    match(
+        'Single quote string with escape',
+        q{SELECT * FROM foo WHERE boo=/* $b */'W''o\'W'}, { b => "Gah!" },
+        q{SELECT * FROM foo WHERE boo=?}, ['Gah!']
+    );
+    match(
+        'String List',
+        q{SELECT * FROM foo WHERE boo IN /* $b */("foo","bar")}, { b => ["Gah!", 'Bah!'] },
+        q{SELECT * FROM foo WHERE boo IN (?,?)}, ['Gah!', 'Bah!']
+    );
+    match(
+        'Numeric List',
+        q{SELECT * FROM foo WHERE boo IN /* $b */(3 , 5)}, { b => [8,3,4] },
+        q{SELECT * FROM foo WHERE boo IN (?,?,?)}, [8,3,4]
+    );
 };
 
 subtest 'IF statement' => sub {
@@ -65,7 +90,7 @@ sub match {
     my ($name, $sql, $params, $expected_sql, $expected_binds) = @_;
 
     subtest $name => sub {
-        my ($sql, @binds) = two_way($sql, $params);
+        my ($sql, @binds) = two_way_sql($sql, $params);
         is($sql, $expected_sql);
         is(0+@binds, 0+@$expected_binds);
         for (0..@$expected_binds-1) {

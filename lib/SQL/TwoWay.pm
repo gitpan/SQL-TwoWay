@@ -2,7 +2,7 @@ package SQL::TwoWay;
 use strict;
 use warnings FATAL => 'recursion';
 use 5.010001; # Named capture
-our $VERSION = "0.03";
+our $VERSION = "0.04";
 use Carp ();
 use Scalar::Util qw(reftype);
 
@@ -129,7 +129,7 @@ sub _parse_if_stmt {
 
     # And, there is END_
     unless ($tokens->[0]->[0] eq END_) {
-        Carp::croak("Unexpected EOF");
+        Carp::croak("Unexpected EOF in IF statement");
     }
     shift @$tokens; # remove END_
 
@@ -146,7 +146,7 @@ sub tokenize_two_way_sql {
     my $STRING_LITERAL = q{ (?:
                                 "
                                     (?:
-                                        \"
+                                        \\\\"
                                         | ""
                                         | [^"]
                                     )*
@@ -154,13 +154,14 @@ sub tokenize_two_way_sql {
                                 |
                                 '
                                     (?:
-                                        \'
+                                        \\\\'
                                         | ''
                                         | [^']
                                     )*
                                 '
                             ) };
     my $LITERAL = "(?: $STRING_LITERAL | $NUMERIC_LITERAL )";
+    my $SINGLE_SLASH = '/ (?! \*)';
     $sql =~ s!
         # Variable /* $var */3
         (
@@ -190,7 +191,7 @@ sub tokenize_two_way_sql {
         (?<sql1> [^/]+ )
         |
         # Single slash character
-        (?<sql2> / )
+        (?<sql2> $SINGLE_SLASH )
     !
         if (defined $+{variable}) {
             push @ret, [VARIABLE, $+{variable}]
@@ -207,6 +208,7 @@ sub tokenize_two_way_sql {
         } else {
             Carp::croak("Invalid sql: $sql");
         }
+        ''
     !gex;
 
     return \@ret;

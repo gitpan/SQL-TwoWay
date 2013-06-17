@@ -1,5 +1,3 @@
-.gitignore
-.travis.yml
 Build.PL
 Changes
 LICENSE
@@ -11,8 +9,5 @@ t/00_compile.t
 t/01_simple.t
 t/02_tokenize.t
 t/03_parse.t
-Build.PL
-LICENSE
-META.json
 META.yml
 MANIFEST
